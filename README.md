@@ -64,6 +64,20 @@ Immich Discord Selfbot is Discord bot designed to manage and interact with asset
    ```
    docker-compose up --build
    ```
+## Immich API
+
+You will need an API key from Immich for this bot to work.
+
+1. Go to your Immich server and log in.
+2. Click on your profile picture in the top right corner and select "Account Settings".
+3. Scroll down to the "API Keys" section and click "New API Key".
+4. Enter a name for the API key and click "Create".
+5. Copy the API key and use it in the `.env` file.
+6. If you want to access server statistics, you will need to create an admin API key. This can be done from the original creator of the Immich server.
+
+## Discord Token
+
+You can find guides online on how to get your Discord user token. This token is used to log in to Discord and send messages on your behalf. Be careful with your token and do not share it with anyone.
 
 ## Usage
 
