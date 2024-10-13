@@ -30,6 +30,7 @@ async def on_ready():
     """
     print(f'Logged in as {bot.user.name}')
     await bot.load_extension('cogs.asset_commands')
+    await bot.change_presence(afk=True)
 
 # Print the token (first 10 characters) for debugging
 token = os.getenv('DISCORD_TOKEN')
