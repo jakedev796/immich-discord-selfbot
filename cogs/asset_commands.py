@@ -22,8 +22,11 @@ class AssetCommands(commands.Cog):
         self.api_key = os.getenv('API_KEY')
         self.admin_api_key = os.getenv('ADMIN_API_KEY')
         self.base_url = os.getenv('BASE_URL')
-        self.error_message = "An error occurred. Please try again later."
+        self.error_message = "An error occurred. Check console for more details."
         self.message_delete_delay = 10  # Seconds before deleting messages
+        self.max_file_size_mb = float(os.getenv('MAX_FILE_SIZE_MB', 50))
+        self.max_file_size_bytes = self.max_file_size_mb * 1_000_000  # Convert MB to bytes
+        self.bot_prefix = os.getenv('BOT_PREFIX', '?')
 
     async def handle_error(self, ctx, error_type, details):
         """
@@ -76,7 +79,7 @@ class AssetCommands(commands.Cog):
 
     async def fetch_and_send_asset(self, ctx, asset_id):
         """
-        Fetches an asset and sends it to the Discord channel.
+        Fetches an asset and sends it to the Discord channel if it meets the size requirements.
         """
         headers = {
             'Accept': 'application/octet-stream',
@@ -85,6 +88,11 @@ class AssetCommands(commands.Cog):
 
         try:
             asset_info = await self.fetch_asset_info(asset_id)
+            file_size_bytes = asset_info['exifInfo']['fileSizeInByte']
+
+            if file_size_bytes > self.max_file_size_bytes:
+                return False, f"The requested asset (ID: {asset_id}) is too large to upload (Size: {self.format_file_size(file_size_bytes)}, Limit: {self.max_file_size_mb} MB)."
+
             asset_url = f"{self.base_url}/api/assets/{asset_id}/original"
             asset_response = requests.get(asset_url, headers=headers)
             asset_response.raise_for_status()
@@ -94,7 +102,7 @@ class AssetCommands(commands.Cog):
             if extension == '.jpe':
                 extension = '.jpg'
 
-            file_size = self.format_file_size(asset_info['exifInfo']['fileSizeInByte'])
+            file_size = self.format_file_size(file_size_bytes)
             resolution = f"{asset_info['exifInfo']['exifImageWidth']}x{asset_info['exifInfo']['exifImageHeight']}"
             downloaded_at = self.format_date(asset_info['fileCreatedAt'])
             original_file_name = asset_info.get('originalFileName', 'Unknown')
@@ -110,14 +118,15 @@ class AssetCommands(commands.Cog):
             )
 
             await ctx.send(file_details, file=discord.File(asset_data, filename=f"asset_{asset_id}{extension}"))
+            return True, None
 
         except Exception as e:
-            await self.handle_error(ctx, "Asset fetch error", f"Error fetching asset {asset_id}: {str(e)}")
+            return False, f"Error fetching asset {asset_id}: {str(e)}"
 
     @commands.command()
     async def random(self, ctx):
         """
-        Fetches and displays a random asset.
+        Fetches and displays a random asset that meets the size requirements.
         """
         try:
             headers = {
@@ -125,20 +134,25 @@ class AssetCommands(commands.Cog):
                 'x-api-key': self.api_key
             }
             random_asset_url = f"{self.base_url}/api/assets/random"
-            response = requests.get(random_asset_url, headers=headers)
-            response.raise_for_status()
-            data = response.json()
 
-            if not isinstance(data, list) or len(data) == 0:
-                raise ValueError("No assets found in API response")
+            while True:
+                response = requests.get(random_asset_url, headers=headers)
+                response.raise_for_status()
+                data = response.json()
 
-            asset = random.choice(data)
-            asset_id = asset.get('id')
+                if not isinstance(data, list) or len(data) == 0:
+                    raise ValueError("No assets found in API response")
 
-            if not asset_id:
-                raise ValueError("No asset ID found in selected asset")
+                asset = random.choice(data)
+                asset_id = asset.get('id')
 
-            await self.fetch_and_send_asset(ctx, asset_id)
+                if not asset_id:
+                    raise ValueError("No asset ID found in selected asset")
+
+                success, message = await self.fetch_and_send_asset(ctx, asset_id)
+                if success:
+                    break
+                # If not successful, the loop will continue to try another random asset
 
         except Exception as e:
             await self.handle_error(ctx, "Random asset error", str(e))
@@ -148,10 +162,12 @@ class AssetCommands(commands.Cog):
     @commands.command()
     async def get(self, ctx, asset_id: str):
         """
-        Fetches and displays a specific asset by ID.
+        Fetches and displays a specific asset by ID if it meets the size requirements.
         """
         try:
-            await self.fetch_and_send_asset(ctx, asset_id)
+            success, message = await self.fetch_and_send_asset(ctx, asset_id)
+            if not success:
+                await ctx.send(self.error_message, delete_after=self.message_delete_delay)
         except Exception as e:
             await self.handle_error(ctx, "Get asset error", f"Error getting asset {asset_id}: {str(e)}")
         finally:
@@ -243,21 +259,21 @@ class AssetCommands(commands.Cog):
         """
         Displays a help message with all available commands.
         """
-        help_message = """
+        help_message = f"""
 ```
 Asset Bot Help
 ==============
 
 Available Commands:
 -------------------
-?random           : Fetches and displays a random asset
-?get <asset_id>   : Fetches and displays a specific asset
-?favorite <asset_id> : Marks an asset as a favorite
-?delete <asset_id>: Deletes a specific asset
-?stats            : Displays server statistics
-?help             : Shows this help message
+{self.bot_prefix}random           : Fetches and displays a random asset
+{self.bot_prefix}get <asset_id>   : Fetches and displays a specific asset
+{self.bot_prefix}favorite <asset_id> : Marks an asset as a favorite
+{self.bot_prefix}delete <asset_id>: Deletes a specific asset
+{self.bot_prefix}stats            : Displays server statistics
+{self.bot_prefix}help             : Shows this help message
 
-All commands use the '?' prefix.
+All commands use the '{self.bot_prefix}' prefix.
 ```
 """
         await ctx.send(help_message)

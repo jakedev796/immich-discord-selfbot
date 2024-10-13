@@ -11,9 +11,12 @@ load_dotenv()
 print(f"Python executable: {sys.executable}")
 print(f"Python version: {sys.version}")
 
+# Get the bot prefix from environment variables
+bot_prefix = os.getenv('BOT_PREFIX', '?')
+
 # Create the bot with chunk_guilds_at_startup set to False and help_command set to None
 bot = commands.Bot(
-    command_prefix='?',
+    command_prefix=bot_prefix,
     self_bot=True,
     chunk_guilds_at_startup=False,
     request_guilds=False,
