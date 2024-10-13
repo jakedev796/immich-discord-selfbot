@@ -10,9 +10,10 @@ from datetime import datetime
 import logging
 import json
 from collections import defaultdict
+import traceback
 
-# Set up logging
-logging.basicConfig(level=logging.ERROR)
+# Set up logging for production (only show critical errors)
+logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 load_dotenv()
@@ -25,7 +26,7 @@ class AssetCommands(commands.Cog):
         self.base_url = os.getenv('BASE_URL')
         self.error_message = "An error occurred. Please try again later."
         self.message_delete_delay = 10  # Seconds before deleting messages
-        self.max_file_size_mb = float(os.getenv('MAX_FILE_SIZE_MB', 50))
+        self.max_file_size_mb = float(os.getenv('MAX_FILE_SIZE_MB'))
         self.max_file_size_bytes = self.max_file_size_mb * 1_000_000  # Convert MB to bytes
         self.bot_prefix = os.getenv('BOT_PREFIX', '?')
         self.last_fetched_asset = defaultdict(lambda: None)  # Store last fetched asset for each user
@@ -43,12 +44,8 @@ class AssetCommands(commands.Cog):
         """
         try:
             await ctx.message.delete()
-        except discord.errors.Forbidden:
-            logger.warning("Bot doesn't have permission to delete messages")
-        except discord.errors.NotFound:
-            logger.info("Message not found, it might have been deleted already")
         except Exception as e:
-            logger.error(f"An error occurred while deleting the message: {e}")
+            logger.error(f"Failed to delete command message: {str(e)}")
 
     def format_file_size(self, size_in_bytes):
         """
@@ -79,9 +76,21 @@ class AssetCommands(commands.Cog):
         response.raise_for_status()
         return response.json()
 
+    async def upload_large_file(self, ctx, file_data, filename):
+        """
+        Uploads a large file to Discord's GCP bucket using upload_files.
+        """
+        try:
+            file = discord.File(io.BytesIO(file_data), filename=filename)
+            uploaded_files = await ctx.channel.upload_files(file)
+            return uploaded_files[0] if uploaded_files else None
+        except Exception as e:
+            logger.error(f"Failed to upload large file {filename}: {str(e)}")
+            raise
+
     async def fetch_and_send_asset(self, ctx, asset_id):
         """
-        Fetches an asset and sends it to the Discord channel if it meets the size requirements.
+        Fetches an asset and sends it to the Discord channel, using upload_files for large files.
         """
         headers = {
             'Accept': 'application/octet-stream',
@@ -104,30 +113,39 @@ class AssetCommands(commands.Cog):
             if extension == '.jpe':
                 extension = '.jpg'
 
-            file_size = self.format_file_size(file_size_bytes)
-            resolution = f"{asset_info['exifInfo']['exifImageWidth']}x{asset_info['exifInfo']['exifImageHeight']}"
-            downloaded_at = self.format_date(asset_info['fileCreatedAt'])
-            original_file_name = asset_info.get('originalFileName', 'Unknown')
+            file_details = self.get_file_details(asset_info, file_size_bytes)
 
-            asset_data = io.BytesIO(asset_response.content)
-            file_details = (
-                f"**File Details:**\n"
-                f"ID: {asset_id}\n"
-                f"Original File Name: {original_file_name}\n"
-                f"Size: {file_size}\n"
-                f"Resolution: {resolution}\n"
-                f"Downloaded: {downloaded_at}"
-            )
+            if file_size_bytes > 100_000_000:  # 100 MB
+                uploaded_file = await self.upload_large_file(ctx, asset_response.content, f"asset_{asset_id}{extension}")
+                if uploaded_file:
+                    await ctx.send(file_details, file=uploaded_file)
+                else:
+                    return False, "Failed to upload large file."
+            else:
+                asset_data = io.BytesIO(asset_response.content)
+                await ctx.send(file_details, file=discord.File(asset_data, filename=f"asset_{asset_id}{extension}"))
 
-            await ctx.send(file_details, file=discord.File(asset_data, filename=f"asset_{asset_id}{extension}"))
-
-            # Store the last fetched asset for this user
             self.last_fetched_asset[ctx.author.id] = asset_id
-
             return True, None
 
         except Exception as e:
+            logger.error(f"Error fetching asset {asset_id}: {str(e)}")
             return False, f"Error fetching asset {asset_id}: {str(e)}"
+
+    def get_file_details(self, asset_info, file_size_bytes):
+        file_size = self.format_file_size(file_size_bytes)
+        resolution = f"{asset_info['exifInfo']['exifImageWidth']}x{asset_info['exifInfo']['exifImageHeight']}"
+        downloaded_at = self.format_date(asset_info['fileCreatedAt'])
+        original_file_name = asset_info.get('originalFileName', 'Unknown')
+
+        return (
+            f"**File Details:**\n"
+            f"ID: {asset_info['id']}\n"
+            f"Original File Name: {original_file_name}\n"
+            f"Size: {file_size}\n"
+            f"Resolution: {resolution}\n"
+            f"Downloaded: {downloaded_at}"
+        )
 
     @commands.command()
     async def random(self, ctx):
@@ -158,9 +176,9 @@ class AssetCommands(commands.Cog):
                 success, message = await self.fetch_and_send_asset(ctx, asset_id)
                 if success:
                     break
-                # If not successful, the loop will continue to try another random asset
 
         except Exception as e:
+            logger.error(f"Error in random asset command: {str(e)}")
             await self.handle_error(ctx, "Random asset error", str(e))
         finally:
             await self.delete_command_message(ctx)
@@ -173,8 +191,9 @@ class AssetCommands(commands.Cog):
         try:
             success, message = await self.fetch_and_send_asset(ctx, asset_id)
             if not success:
-                await ctx.send(self.error_message, delete_after=self.message_delete_delay)
+                await ctx.send(message, delete_after=self.message_delete_delay)
         except Exception as e:
+            logger.error(f"Error in get asset command: {str(e)}")
             await self.handle_error(ctx, "Get asset error", f"Error getting asset {asset_id}: {str(e)}")
         finally:
             await self.delete_command_message(ctx)
@@ -192,9 +211,7 @@ class AssetCommands(commands.Cog):
                     return
 
             url = f"{self.base_url}/api/assets/{asset_id}"
-            payload = json.dumps({
-                "isFavorite": True,
-            })
+            payload = json.dumps({"isFavorite": True})
             headers = {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
@@ -205,6 +222,7 @@ class AssetCommands(commands.Cog):
 
             await ctx.send(f"Asset {asset_id} has been marked as favorite.", delete_after=self.message_delete_delay)
         except Exception as e:
+            logger.error(f"Error in favorite asset command: {str(e)}")
             await self.handle_error(ctx, "Favorite asset error", f"Error favoriting asset {asset_id}: {str(e)}")
         finally:
             await self.delete_command_message(ctx)
@@ -235,10 +253,10 @@ class AssetCommands(commands.Cog):
 
             await ctx.send(f"Asset {asset_id} has been deleted.", delete_after=self.message_delete_delay)
 
-            # If the deleted asset was the last fetched one, clear it from the record
             if self.last_fetched_asset.get(ctx.author.id) == asset_id:
                 self.last_fetched_asset[ctx.author.id] = None
         except Exception as e:
+            logger.error(f"Error in delete asset command: {str(e)}")
             await self.handle_error(ctx, "Delete asset error", f"Error deleting asset {asset_id}: {str(e)}")
         finally:
             await self.delete_command_message(ctx)
@@ -252,7 +270,7 @@ class AssetCommands(commands.Cog):
             url = f"{self.base_url}/api/server/statistics"
             headers = {
                 'Accept': 'application/json',
-                'x-api-key': self.admin_api_key  # Using admin API key for stats
+                'x-api-key': self.admin_api_key
             }
             response = requests.get(url, headers=headers)
             response.raise_for_status()
@@ -270,8 +288,8 @@ class AssetCommands(commands.Cog):
             )
 
             await ctx.send(stats_message)
-
         except Exception as e:
+            logger.error(f"Error in stats command: {str(e)}")
             await self.handle_error(ctx, "Stats error", f"Error fetching stats: {str(e)}")
         finally:
             await self.delete_command_message(ctx)
