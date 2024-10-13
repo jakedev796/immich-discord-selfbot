@@ -85,8 +85,8 @@ The bot responds to the following commands:
 
 - `?random`: Fetches and displays a random asset
 - `?get <asset_id>`: Fetches and displays a specific asset
-- `?favorite <asset_id>`: Marks an asset as a favorite
-- `?delete <asset_id>`: Deletes a specific asset
+- `?favorite <asset_id OR last>`: Marks an asset as a favorite
+- `?delete <asset_id OR last>`: Deletes a specific asset
 - `?stats`: Displays server statistics
 - `?help`: Shows a help message with available commands
 

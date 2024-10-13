@@ -9,6 +9,7 @@ import mimetypes
 from datetime import datetime
 import logging
 import json
+from collections import defaultdict
 
 # Set up logging
 logging.basicConfig(level=logging.ERROR)
@@ -22,11 +23,12 @@ class AssetCommands(commands.Cog):
         self.api_key = os.getenv('API_KEY')
         self.admin_api_key = os.getenv('ADMIN_API_KEY')
         self.base_url = os.getenv('BASE_URL')
-        self.error_message = "An error occurred. Check console for more details."
+        self.error_message = "An error occurred. Please try again later."
         self.message_delete_delay = 10  # Seconds before deleting messages
         self.max_file_size_mb = float(os.getenv('MAX_FILE_SIZE_MB', 50))
         self.max_file_size_bytes = self.max_file_size_mb * 1_000_000  # Convert MB to bytes
         self.bot_prefix = os.getenv('BOT_PREFIX', '?')
+        self.last_fetched_asset = defaultdict(lambda: None)  # Store last fetched asset for each user
 
     async def handle_error(self, ctx, error_type, details):
         """
@@ -118,6 +120,10 @@ class AssetCommands(commands.Cog):
             )
 
             await ctx.send(file_details, file=discord.File(asset_data, filename=f"asset_{asset_id}{extension}"))
+
+            # Store the last fetched asset for this user
+            self.last_fetched_asset[ctx.author.id] = asset_id
+
             return True, None
 
         except Exception as e:
@@ -176,9 +182,15 @@ class AssetCommands(commands.Cog):
     @commands.command()
     async def favorite(self, ctx, asset_id: str):
         """
-        Marks an asset as a favorite.
+        Marks an asset as a favorite. Use 'last' to favorite the last fetched asset.
         """
         try:
+            if asset_id.lower() == 'last':
+                asset_id = self.last_fetched_asset.get(ctx.author.id)
+                if asset_id is None:
+                    await ctx.send("No asset has been fetched yet.", delete_after=self.message_delete_delay)
+                    return
+
             url = f"{self.base_url}/api/assets/{asset_id}"
             payload = json.dumps({
                 "isFavorite": True,
@@ -200,9 +212,15 @@ class AssetCommands(commands.Cog):
     @commands.command()
     async def delete(self, ctx, asset_id: str):
         """
-        Deletes a specific asset by ID.
+        Deletes a specific asset by ID. Use 'last' to delete the last fetched asset.
         """
         try:
+            if asset_id.lower() == 'last':
+                asset_id = self.last_fetched_asset.get(ctx.author.id)
+                if asset_id is None:
+                    await ctx.send("No asset has been fetched yet.", delete_after=self.message_delete_delay)
+                    return
+
             url = f"{self.base_url}/api/assets"
             payload = json.dumps({
                 "force": True,
@@ -216,6 +234,10 @@ class AssetCommands(commands.Cog):
             response.raise_for_status()
 
             await ctx.send(f"Asset {asset_id} has been deleted.", delete_after=self.message_delete_delay)
+
+            # If the deleted asset was the last fetched one, clear it from the record
+            if self.last_fetched_asset.get(ctx.author.id) == asset_id:
+                self.last_fetched_asset[ctx.author.id] = None
         except Exception as e:
             await self.handle_error(ctx, "Delete asset error", f"Error deleting asset {asset_id}: {str(e)}")
         finally:
@@ -268,12 +290,13 @@ Available Commands:
 -------------------
 {self.bot_prefix}random           : Fetches and displays a random asset
 {self.bot_prefix}get <asset_id>   : Fetches and displays a specific asset
-{self.bot_prefix}favorite <asset_id> : Marks an asset as a favorite
-{self.bot_prefix}delete <asset_id>: Deletes a specific asset
+{self.bot_prefix}favorite <asset_id|last> : Marks an asset as a favorite
+{self.bot_prefix}delete <asset_id|last>   : Deletes a specific asset
 {self.bot_prefix}stats            : Displays server statistics
 {self.bot_prefix}help             : Shows this help message
 
 All commands use the '{self.bot_prefix}' prefix.
+Use 'last' with favorite and delete to act on the last fetched asset.
 ```
 """
         await ctx.send(help_message)
