@@ -37,13 +37,16 @@ Immich Discord Selfbot is Discord bot designed to manage and interact with asset
    cp .env.sample .env
    ```
 
-4. Edit the `.env` file and fill in your actual API keys, Discord bot token, and base URL:
+4. Edit the `.env` file with your details:
    ```
-   BASE_URL=https://photos.boker.xyz
+   BASE_URL=https://example.com
    API_KEY=your_regular_api_key
    ADMIN_API_KEY=your_admin_api_key
    DISCORD_TOKEN=your_discord_user_token
+   BOT_PREFIX=?
+   MAX_FILE_SIZE_MB=50
    ```
+
 
 5. Run the bot:
    ```
@@ -98,6 +101,8 @@ The bot uses the following environment variables, which should be set in the `.e
 - `API_KEY`: The regular API key for accessing the asset server
 - `ADMIN_API_KEY`: The admin API key for accessing server statistics
 - `DISCORD_TOKEN`: Your Discord user token
+- `BOT_PREFIX`: Prefix for commands
+- `MAX_FILE_SIZE_MB`: Maximum file size in MB for attachments
 
 ## Disclaimer: Use of Discord Selfbots
 
