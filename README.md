@@ -19,7 +19,7 @@ Immich Discord Selfbot is Discord bot designed to manage and interact with asset
 
 - Python 3.7 or higher
 - [Immich](https://github.com/immich-app/immich)
-- Docker (optional)
+- Docker (optional, but highly recommended)
 
 ## Installation
 
