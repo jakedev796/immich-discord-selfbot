@@ -8,6 +8,7 @@ from utils.discord_utils import (
 )
 from utils.asset_utils import asset_utils
 from typing import Optional, Dict, Tuple  # Added complete typing imports
+from utils.state_utils import state_manager
 from collections import defaultdict
 import mimetypes
 import logging
@@ -90,24 +91,20 @@ class AssetCommands(commands.Cog):
         Usage: .delete <asset_id|last>
         """
         try:
-            user_id = ctx.author.id
-            message_id = None
-
             if asset_id.lower() == 'last':
-                asset_id = self.last_fetched_asset.get(user_id)
-                message_id = self.last_message_id.get(user_id)
-
-                if asset_id is None:
+                asset_state = state_manager.get_last_asset(ctx.author.id)
+                if asset_state is None:
                     await send_error_message(ctx, "No asset has been fetched yet.")
                     return
+                asset_id = asset_state.asset_id
 
-            # Try to delete the Discord message if we have its ID
-            if message_id is not None:
-                try:
-                    message = await ctx.channel.fetch_message(message_id)
-                    await message.delete()
-                except Exception as e:
-                    logger.error(f"Failed to delete Discord message: {str(e)}")
+                # Try to delete the Discord message if we have its ID
+                if asset_state.message_id is not None:
+                    try:
+                        message = await ctx.channel.fetch_message(asset_state.message_id)
+                        await message.delete()
+                    except Exception as e:
+                        logger.error(f"Failed to delete Discord message: {str(e)}")
 
             # Delete the asset from Immich
             success, error = await asset_utils.delete_asset(asset_id)
@@ -117,10 +114,10 @@ class AssetCommands(commands.Cog):
 
             await ctx.send(f"Asset {asset_id} has been deleted.", delete_after=5)
 
-            # Clear the stored IDs if we just deleted the last fetched asset
-            if self.last_fetched_asset.get(user_id) == asset_id:
-                self.last_fetched_asset[user_id] = None
-                self.last_message_id[user_id] = None
+            # Clear the stored asset if we just deleted it
+            last_asset = state_manager.get_last_asset(ctx.author.id)
+            if last_asset and last_asset.asset_id == asset_id:
+                state_manager.clear_last_asset(ctx.author.id)
 
         except Exception as e:
             logger.error(f"Error in delete asset command: {str(e)}")
