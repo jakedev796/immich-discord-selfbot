@@ -29,7 +29,23 @@ async def on_ready():
     Event that triggers when the bot is ready and connected to Discord.
     """
     print(f'Logged in as {bot.user.name}')
-    await bot.load_extension('cogs.asset_commands')
+
+    # Load all extensions
+    extensions = [
+        'cogs.asset_commands',
+        'cogs.random_commands',
+        'cogs.favorite_commands',
+        'cogs.preference_commands',
+        'cogs.help_commands'
+    ]
+
+    for extension in extensions:
+        try:
+            await bot.load_extension(extension)
+            print(f'Loaded extension: {extension}')
+        except Exception as e:
+            print(f'Failed to load extension {extension}: {str(e)}')
+
     await bot.change_presence(afk=True)
 
 # Print the token (first 10 characters) for debugging

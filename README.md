@@ -4,12 +4,16 @@ Immich Discord Selfbot is Discord bot designed to manage and interact with asset
 
 ## Features
 
-- Fetch and display random assets
+- Fetch and display random assets with filtering options:
+   - Filter by media type (image/video)
+   - Filter by file size (min/max)
+   - Fetch multiple assets at once
 - Get specific assets by ID
 - Mark assets as favorites
 - Delete assets
 - View server statistics
-- Help command for easy reference
+- User-specific preferences
+- Help commands for easy reference
 
 ## Prerequisites
 
@@ -37,18 +41,23 @@ Immich Discord Selfbot is Discord bot designed to manage and interact with asset
    cp .env.sample .env
    ```
 
-4. Edit the `.env` file with your details:
+4. Copy the preferences template:
    ```
-   BASE_URL=https://example.com
+   mkdir -p data
+   cp data/preferences.json.example data/preferences.json
+   ```
+
+5. Edit the `.env` file and fill in your actual API keys, Discord bot token, and base URL:
+   ```
+   BASE_URL=https://photos.example.com
    API_KEY=your_regular_api_key
    ADMIN_API_KEY=your_admin_api_key
    DISCORD_TOKEN=your_discord_user_token
-   BOT_PREFIX=?
-   MAX_FILE_SIZE_MB=50
+   MAX_FILE_SIZE_MB=499
+   BOT_PREFIX=.
    ```
 
-
-5. Run the bot:
+6. Run the bot:
    ```
    python main.py
    ```
@@ -61,37 +70,53 @@ Immich Discord Selfbot is Discord bot designed to manage and interact with asset
    cd immich-discord-selfbot
    ```
 
-2. Copy the `.env.sample` file to `.env` and edit it as described in step 4 of the Python installation.
+2. Copy and edit the configuration files:
+   ```
+   cp .env.sample .env
+   mkdir -p data
+   cp data/preferences.json.example data/preferences.json
+   ```
 
-3. Build and run the Docker container:
+3. Edit the `.env` file as described in step 5 of the Python installation.
+
+4. Build and run the Docker container:
    ```
    docker-compose up --build
    ```
-## Immich API
-
-You will need an API key from Immich for this bot to work.
-
-1. Go to your Immich server and log in.
-2. Click on your profile picture in the top right corner and select "Account Settings".
-3. Scroll down to the "API Keys" section and click "New API Key".
-4. Enter a name for the API key and click "Create".
-5. Copy the API key and use it in the `.env` file.
-6. If you want to access server statistics, you will need to create an admin API key. This can be done from the original creator of the Immich server.
-
-## Discord Token
-
-You can find guides online on how to get your Discord user token. This token is used to log in to Discord and send messages on your behalf. Be careful with your token and do not share it with anyone.
 
 ## Usage
 
 The bot responds to the following commands:
 
-- `?random`: Fetches and displays a random asset
-- `?get <asset_id>`: Fetches and displays a specific asset
-- `?favorite <asset_id OR last>`: Marks an asset as a favorite
-- `?delete <asset_id OR last>`: Deletes a specific asset
-- `?stats`: Displays server statistics
-- `?help`: Shows a help message with available commands
+### Core Commands
+- `.random [options]`: Fetches and displays random assets
+   - Options:
+      - `min:size`: Minimum file size (e.g., min:2mb, min:500kb)
+      - `max:size`: Maximum file size (e.g., max:5mb, max:900kb)
+      - `image/video`: Asset type filter
+      - `count:n`: Number of assets to fetch (max 10)
+   - Example: `.random min:2mb max:5mb image count:3`
+- `.get <asset_id>`: Fetches and displays a specific asset
+- `.favorite <asset_id|last>`: Marks an asset as a favorite
+- `.unfavorite <asset_id|last>`: Removes an asset from favorites
+- `.delete <asset_id|last>`: Deletes a specific asset
+- `.stats`: Displays server statistics
+
+### Preference Commands
+- `.prefs`: Show current preferences
+- `.prefs set <setting> <value>`: Update a preference
+   - Available settings:
+      - `media_type` (aliases: mt, type): Default media type (image, video, all)
+      - `min_size` (aliases: mins, min): Default minimum file size
+      - `max_size` (aliases: maxs, max): Default maximum file size
+      - `max_attempts` (aliases: attempts, retry): Maximum API retry attempts
+      - `update_interval` (aliases: interval, update): Progress update interval
+- `.prefs reset`: Reset preferences to defaults
+- `.helppref`: Show detailed preference help
+
+### Help Commands
+- `.help`: Shows general help message
+- `.helppref`: Shows detailed preference settings help
 
 ## Environment Variables
 
@@ -101,8 +126,18 @@ The bot uses the following environment variables, which should be set in the `.e
 - `API_KEY`: The regular API key for accessing the asset server
 - `ADMIN_API_KEY`: The admin API key for accessing server statistics
 - `DISCORD_TOKEN`: Your Discord user token
-- `BOT_PREFIX`: Prefix for commands
-- `MAX_FILE_SIZE_MB`: Maximum file size in MB for attachments
+- `MAX_FILE_SIZE_MB`: Maximum file size for uploads (based on your Discord account type)
+- `BOT_PREFIX`: Command prefix for the bot (default is '.')
+
+## User Preferences
+
+User preferences are stored in `data/preferences.json`. The following preferences can be configured:
+
+- Default media type (image/video/all)
+- Minimum file size
+- Maximum file size
+- Maximum API retry attempts
+- Progress update interval
 
 ## Disclaimer: Use of Discord Selfbots
 

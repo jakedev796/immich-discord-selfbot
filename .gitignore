@@ -1,3 +1,5 @@
 .env
-.venv
-.idea
+/data/preferences.json
+**/__pycache__/
+.idea/
+.venv/

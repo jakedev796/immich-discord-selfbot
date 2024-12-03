@@ -9,6 +9,5 @@ services:
       - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB}
       - BOT_PREFIX=${BOT_PREFIX}
     volumes:
-      - ./main.py:/app/main.py
-      - ./cogs:/app/cogs
+      - ./:/app
     restart: unless-stopped
