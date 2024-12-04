@@ -6,7 +6,6 @@ services:
       - API_KEY=${API_KEY}
       - ADMIN_API_KEY=${ADMIN_API_KEY}
       - DISCORD_TOKEN=${DISCORD_TOKEN}
-      - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB}
       - BOT_PREFIX=${BOT_PREFIX}
     volumes:
       - ./:/app

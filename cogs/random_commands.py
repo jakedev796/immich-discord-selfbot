@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 import asyncio
 import io
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 from utils.config import config
 from utils.formatting import (
     parse_size_string, format_file_size, get_progress_message,
@@ -14,6 +14,8 @@ from utils.discord_utils import (
 )
 from utils.asset_utils import asset_utils
 from utils.state_utils import state_manager
+import os
+import mimetypes
 import logging
 
 logger = logging.getLogger(__name__)
@@ -46,6 +48,34 @@ class RandomCommands(commands.Cog):
 
         return min_size, max_size, media_type, count
 
+    def format_command_details(self, ctx: commands.Context, args: tuple) -> str:
+        """Format command details for inclusion in message."""
+        command_str = f"{ctx.prefix}{ctx.command}"
+        if args:
+            command_str += " " + " ".join(str(arg) for arg in args)
+        return command_str.strip()
+
+    def get_file_extension(self, original_filename: str, content_type: str) -> str:
+        """Get appropriate file extension from original filename or content type."""
+        # First try to get extension from original filename
+        if original_filename and '.' in original_filename:
+            return os.path.splitext(original_filename)[1]
+
+        # Fallback to content type mapping
+        extension = mimetypes.guess_extension(content_type) or ''
+        if extension == '.jpe':
+            extension = '.jpg'
+        elif content_type == 'video/mp4':
+            extension = '.mp4'
+        return extension
+
+    async def check_file_size(self, size_bytes: int, user_id: str) -> Tuple[bool, str]:
+        """Check if file size is within Discord limits."""
+        max_file_size = config.get_file_size_limit(user_id)
+        if size_bytes > max_file_size:
+            return False, f"⚠️ File too large for Discord upload (Size: {format_file_size(size_bytes)}, Limit: {format_file_size(max_file_size)})"
+        return True, ""
+
     async def process_random_assets(self,
                                     ctx: commands.Context,
                                     count: int,
@@ -53,12 +83,27 @@ class RandomCommands(commands.Cog):
                                     max_size: Optional[int] = None,
                                     media_type: Optional[str] = None) -> None:
         """Process and send random assets with progress updates."""
-        # Delete the original command message
-        await delete_command_message(ctx)
+        user_id = ctx.author.id
+        user_prefs = config.get_user_preferences(str(user_id))
+        account_max_size = config.get_file_size_limit(str(user_id))
+        command_str = self.format_command_details(ctx, ctx.args[2:])
 
-        # Create progress message
-        progress_msg = await ctx.send("Starting asset search...")
-        user_prefs = config.get_user_preferences(str(ctx.author.id))
+        # Check if min_size exceeds max allowed file size
+        if min_size and min_size > account_max_size:
+            await ctx.message.edit(
+                content=f"❌ Minimum file size ({format_file_size(min_size)}) cannot exceed your account's maximum file size limit ({format_file_size(account_max_size)})",
+                delete_after=15
+            )
+            return
+
+        # If max_size is specified, ensure it doesn't exceed account limit
+        if max_size and max_size > account_max_size:
+            max_size = account_max_size
+
+        progress_msg = ctx.message
+
+        # Start tracking this job
+        state_manager.start_job(user_id, progress_msg)
 
         try:
             valid_assets = []
@@ -66,29 +111,31 @@ class RandomCommands(commands.Cog):
             max_attempts = user_prefs['max_attempts']
             last_update = 0
 
+            # Initial progress message
+            await progress_msg.edit(content="🔍 Starting asset search...")
+
             while attempts < max_attempts and len(valid_assets) < count:
-                # Update progress message
+                # Check for cancellation
+                if state_manager.should_cancel(user_id):
+                    return
+
                 current_time = asyncio.get_event_loop().time()
                 if current_time - last_update >= user_prefs['progress_update_interval']:
-                    await update_progress_message(
-                        progress_msg,
-                        f"Found {len(valid_assets)}/{count} assets... (Attempt {attempts + 1}/{max_attempts})"
+                    await progress_msg.edit(
+                        content=f"🔍 Found {len(valid_assets)}/{count} assets... (Attempt {attempts + 1}/{max_attempts})"
                     )
                     last_update = current_time
 
-                # Fetch a batch of random assets
                 assets, error = await asset_utils.fetch_random_assets(min(5, count - len(valid_assets)))
                 if error or not assets:
                     attempts += 1
                     continue
 
-                # Process each asset in the batch
                 for asset in assets:
                     attempts += 1
                     if attempts > max_attempts:
                         break
 
-                    # Get asset info and check filters
                     asset_info = await asset_utils.fetch_asset_info(asset['id'])
                     if not asset_info:
                         continue
@@ -104,43 +151,103 @@ class RandomCommands(commands.Cog):
                     if max_size and file_size > max_size:
                         continue
 
-                    # Get the actual file data
-                    file_data = await asset_utils.fetch_asset_data(asset['id'])
-                    if not file_data:
-                        continue
+                    # Check file size before fetching data
+                    can_upload, size_message = await self.check_file_size(file_size, str(user_id))
+
+                    # Only fetch file data if size check passes
+                    file_data = await asset_utils.fetch_asset_data(asset['id']) if can_upload else None
 
                     valid_assets.append({
                         'info': asset_info,
                         'data': file_data,
-                        'id': asset['id']
+                        'id': asset['id'],
+                        'can_upload': can_upload,
+                        'size_message': size_message
                     })
 
                     if len(valid_assets) >= count:
                         break
 
-            # Clean up progress message
-            await progress_msg.delete()
-
+            # Handle no results found
             if not valid_assets:
-                await send_error_message(ctx, f"No matching assets found after {attempts} attempts")
+                await progress_msg.edit(
+                    content=f"❌ No matching assets found for command: `{command_str}` after {attempts} attempts.",
+                    delete_after=15
+                )
                 return
 
-            # Send each asset individually with its details
+            # Clean up progress message if we found assets
+            await progress_msg.delete()
+
+            # Send each valid asset
             for asset in valid_assets:
-                file = discord.File(
-                    io.BytesIO(asset['data']),
-                    f"asset_{asset['id']}.{asset['info'].get('originalFileName', '').split('.')[-1]}"
+                details = (
+                    f"**Command Used:** `{command_str}`\n\n"
+                    f"{format_file_details(asset['info'], asset['info']['exifInfo']['fileSizeInByte'])}\n"
                 )
-                message = await ctx.send(
-                    format_file_details(asset['info'], asset['info']['exifInfo']['fileSizeInByte']),
-                    file=file
-                )
-                # Store the last asset info in the state manager
+
+                if asset['can_upload']:
+                    # Get content type and extension
+                    content_type = asset['info'].get('contentType', '')
+                    original_filename = asset['info'].get('originalFileName', '')
+                    extension = self.get_file_extension(original_filename, content_type)
+
+                    file = discord.File(
+                        io.BytesIO(asset['data']),
+                        f"asset_{asset['id']}{extension}"
+                    )
+                    message = await ctx.send(details, file=file)
+                else:
+                    details += f"\n{asset['size_message']}"
+                    message = await ctx.send(details)
+
                 state_manager.set_last_asset(ctx.author.id, asset['id'], message.id)
 
         except Exception as e:
             logger.error(f"Error processing random assets: {str(e)}")
-            await send_error_message(ctx, f"Error processing random assets: {str(e)}")
+            await progress_msg.edit(
+                content=f"❌ An error occurred while processing command: `{command_str}`",
+                delete_after=15
+            )
+        finally:
+            state_manager.end_job(user_id)
+
+    @commands.command()
+    async def cancel(self, ctx):
+        """
+        Cancel any running search operations.
+        Usage: .cancel
+        """
+        try:
+            search_msg = state_manager.get_search_message(ctx.author.id)
+
+            if state_manager.cancel_job(ctx.author.id):
+                # First update to show cancellation in progress
+                await ctx.message.edit(content="🛑 Cancelling search...")
+
+                # Wait a moment for the search to actually cancel
+                await asyncio.sleep(1)
+
+                # Delete the original random command message
+                if search_msg:
+                    try:
+                        await search_msg.delete()
+                    except (discord.NotFound, discord.Forbidden, discord.HTTPException) as e:
+                        logger.error(f"Failed to delete search message: {e}")
+
+                # Update the cancel command message and set it to delete
+                await ctx.message.edit(
+                    content="✋ Search cancelled",
+                    delete_after=15
+                )
+            else:
+                await ctx.message.edit(
+                    content="❌ No active search to cancel",
+                    delete_after=15
+                )
+        except Exception as e:
+            logger.error(f"Error in cancel command: {str(e)}")
+            await ctx.send("Error processing cancel command", delete_after=5)
 
     @commands.command()
     async def random(self, ctx, *args):

@@ -5,14 +5,15 @@ Immich Discord Selfbot is Discord bot designed to manage and interact with asset
 ## Features
 
 - Fetch and display random assets with filtering options:
-   - Filter by media type (image/video)
-   - Filter by file size (min/max)
-   - Fetch multiple assets at once
+    - Filter by media type (image/video)
+    - Filter by file size (min/max)
+    - Fetch multiple assets at once
+    - Cancel ongoing searches
 - Get specific assets by ID
 - Mark assets as favorites
 - Delete assets
 - View server statistics
-- User-specific preferences
+- User-specific preferences with account type support
 - Help commands for easy reference
 
 ## Prerequisites
@@ -53,7 +54,6 @@ Immich Discord Selfbot is Discord bot designed to manage and interact with asset
    API_KEY=your_regular_api_key
    ADMIN_API_KEY=your_admin_api_key
    DISCORD_TOKEN=your_discord_user_token
-   MAX_FILE_SIZE_MB=499
    BOT_PREFIX=.
    ```
 
@@ -90,29 +90,38 @@ The bot responds to the following commands:
 
 ### Core Commands
 - `.random [options]`: Fetches and displays random assets
-   - Options:
-      - `min:size`: Minimum file size (e.g., min:2mb, min:500kb)
-      - `max:size`: Maximum file size (e.g., max:5mb, max:900kb)
-      - `image/video`: Asset type filter
-      - `count:n`: Number of assets to fetch (max 10)
-   - Example: `.random min:2mb max:5mb image count:3`
+    - Options:
+        - `min:size`: Minimum file size (e.g., min:2mb, min:500kb)
+        - `max:size`: Maximum file size (e.g., max:5mb, max:900kb)
+        - `image/video`: Asset type filter
+        - `count:n`: Number of assets to fetch (max 10)
+    - Example: `.random min:2mb max:5mb image count:3`
 - `.get <asset_id>`: Fetches and displays a specific asset
 - `.favorite <asset_id|last>`: Marks an asset as a favorite
 - `.unfavorite <asset_id|last>`: Removes an asset from favorites
 - `.delete <asset_id|last>`: Deletes a specific asset
 - `.stats`: Displays server statistics
+- `.cancel`: Cancels an ongoing random search
 
 ### Preference Commands
 - `.prefs`: Show current preferences
 - `.prefs set <setting> <value>`: Update a preference
-   - Available settings:
-      - `media_type` (aliases: mt, type): Default media type (image, video, all)
-      - `min_size` (aliases: mins, min): Default minimum file size
-      - `max_size` (aliases: maxs, max): Default maximum file size
-      - `max_attempts` (aliases: attempts, retry): Maximum API retry attempts
-      - `update_interval` (aliases: interval, update): Progress update interval
+    - Available settings:
+        - `media_type` (aliases: mt, type): Default media type (image, video, all)
+        - `min_size` (aliases: mins, min): Default minimum file size
+        - `account_type` (aliases: account): Discord account type (basic, nitro_basic, nitro)
+        - `max_attempts` (aliases: attempts, retry): Maximum API retry attempts
+        - `update_interval` (aliases: interval, update): Progress update interval
 - `.prefs reset`: Reset preferences to defaults
-- `.helppref`: Show detailed preference help
+- `.helppref`: Show detailed preference settings help
+
+### Account Types and Upload Limits
+The bot supports different Discord account types with their corresponding upload limits:
+- Basic: 25MB limit
+- Nitro Basic: 50MB limit
+- Nitro: 500MB limit
+
+File size limits are automatically enforced based on the user's account type.
 
 ### Help Commands
 - `.help`: Shows general help message
@@ -126,16 +135,15 @@ The bot uses the following environment variables, which should be set in the `.e
 - `API_KEY`: The regular API key for accessing the asset server
 - `ADMIN_API_KEY`: The admin API key for accessing server statistics
 - `DISCORD_TOKEN`: Your Discord user token
-- `MAX_FILE_SIZE_MB`: Maximum file size for uploads (based on your Discord account type)
 - `BOT_PREFIX`: Command prefix for the bot (default is '.')
 
 ## User Preferences
 
-User preferences are stored in `data/preferences.json`. The following preferences can be configured:
+User preferences are stored in `data/preferences.json` and persist across bot restarts. The following preferences can be configured:
 
+- Account type (determines maximum file size)
 - Default media type (image/video/all)
 - Minimum file size
-- Maximum file size
 - Maximum API retry attempts
 - Progress update interval
 
