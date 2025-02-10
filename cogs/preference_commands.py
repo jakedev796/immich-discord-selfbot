@@ -49,31 +49,45 @@ class PreferenceCommands(commands.Cog):
             media_type = prefs['default_media_type'] if prefs['default_media_type'] else 'All types'
             account_type = prefs['account_type'].replace('_', ' ').title()
 
-            prefs_message = f"""```
-    Current Preferences
-    ==================
-    
-    Settings:
-    ---------
-    Account Type (account)     : {account_type} [{prefs['account_type']}]
-    Default Media Type (mt)    : {media_type}
-    Minimum File Size (min)    : {min_size}
-    Maximum File Size (max)    : {max_size}
-    API Retry Attempts        : {prefs['max_attempts']}
-    Update Interval          : {prefs['progress_update_interval']}s
-    
-    Available Account Types:
-    -----------------------
-    • basic       : Regular Discord (25MB limit)
-    • nitro_basic : Nitro Basic (50MB limit)
-    • nitro       : Full Nitro (500MB limit)
-    
-    Commands:
-    ---------
-    {ctx.prefix}prefs set <setting> <value> : Update a preference
-    {ctx.prefix}helppref : Show detailed setting information
-    {ctx.prefix}prefs reset : Reset to defaults
-    ```"""
+            prefs_message = (
+                "```\n"
+                "⚙️ PREFERENCE SETTINGS\n"
+                "═══════════════════\n\n"
+                "📊 Current Values\n"
+                f"  • Account Type: {account_type}\n"
+                f"  • Media Type: {media_type}\n"
+                f"  • Min Size: {min_size}\n"
+                f"  • Max Size: {max_size}\n"
+                f"  • Max Attempts: {prefs['max_attempts']}\n"
+                f"  • Update Interval: {prefs['progress_update_interval']}s\n\n"
+                "📝 Available Settings\n"
+                "  ├─ account_type (account)\n"
+                "  │  └─ Your Discord account type\n"
+                "  │     • basic: Regular Discord (25MB)\n"
+                "  │     • nitro_basic: Nitro Basic (50MB)\n"
+                "  │     • nitro: Full Nitro (500MB)\n"
+                "  │\n"
+                "  ├─ media_type (mt)\n"
+                "  │  └─ Default media type filter\n"
+                "  │     • Values: image, video, all\n"
+                "  │\n"
+                "  ├─ min_size (min)\n"
+                "  │  └─ Minimum file size filter\n"
+                "  │     • Format: number + mb/kb\n"
+                "  │\n"
+                "  ├─ max_attempts\n"
+                "  │  └─ Maximum search attempts\n"
+                "  │     • Format: positive number\n"
+                "  │\n"
+                "  └─ update_interval\n"
+                "     └─ Progress update frequency\n"
+                "        • Format: seconds\n\n"
+                "💡 Usage\n"
+                "  • View settings: .prefs\n"
+                "  • Change setting: .prefs set [setting] [value]\n"
+                "  • Reset all: .prefs reset\n"
+                "```"
+            )
 
             await ctx.send(prefs_message, delete_after=60)
             await delete_command_message(ctx)
@@ -174,40 +188,43 @@ class PreferenceCommands(commands.Cog):
     @commands.command()
     async def helppref(self, ctx):
         """Display detailed help for preference settings."""
-        help_message = f"""
-```
-Preference Settings Help
-=======================
-
-Available Settings:
-------------------
-media_type (mt, type)     : Default media type
-    Values: image, video, all
-    Example: {ctx.prefix}prefs set mt image
-
-min_size (mins, min)      : Default minimum file size
-    Format: number + mb/kb
-    Example: {ctx.prefix}prefs set min 2mb
-
-account_type (account)    : Discord account type (affects max upload size)
-    Values: basic (25MB), nitro_basic (50MB), nitro (500MB)
-    Example: {ctx.prefix}prefs set account nitro
-
-max_attempts (attempts)    : Maximum API retry attempts
-    Format: positive number
-    Example: {ctx.prefix}prefs set attempts 50
-
-update_interval (interval) : Progress update interval
-    Format: seconds (positive number)
-    Example: {ctx.prefix}prefs set interval 5
-
-Commands:
----------
-{ctx.prefix}prefs              : Show current preferences
-{ctx.prefix}prefs set <setting> <value> : Update a preference
-{ctx.prefix}prefs reset       : Reset to defaults
-```
-"""
+        help_message = (
+            "```\n"
+            "⚙️ PREFERENCE SETTINGS HELP\n"
+            "═══════════════════════\n\n"
+            "📝 Available Settings\n"
+            "  ├─ account_type (account)\n"
+            "  │  └─ Your Discord account type\n"
+            "  │     • basic: Regular Discord (25MB)\n"
+            "  │     • nitro_basic: Nitro Basic (50MB)\n"
+            "  │     • nitro: Full Nitro (500MB)\n"
+            "  │     Example: .prefs set account nitro\n"
+            "  │\n"
+            "  ├─ media_type (mt, type)\n"
+            "  │  └─ Default media type filter\n"
+            "  │     • Values: image, video, all\n"
+            "  │     Example: .prefs set mt image\n"
+            "  │\n"
+            "  ├─ min_size (min, mins)\n"
+            "  │  └─ Minimum file size filter\n"
+            "  │     • Format: number + mb/kb\n"
+            "  │     Example: .prefs set min 2mb\n"
+            "  │\n"
+            "  ├─ max_attempts (attempts)\n"
+            "  │  └─ Maximum search attempts\n"
+            "  │     • Format: positive number\n"
+            "  │     Example: .prefs set attempts 50\n"
+            "  │\n"
+            "  └─ update_interval (interval)\n"
+            "     └─ Progress update frequency\n"
+            "        • Format: seconds\n"
+            "        Example: .prefs set interval 5\n\n"
+            "💡 Usage\n"
+            "  • View all settings: .prefs\n"
+            "  • Change setting: .prefs set [setting] [value]\n"
+            "  • Reset all: .prefs reset\n"
+            "```"
+        )
         await ctx.send(help_message, delete_after=60)
         await delete_command_message(ctx)
 

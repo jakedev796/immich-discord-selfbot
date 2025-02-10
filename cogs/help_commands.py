@@ -1,50 +1,60 @@
 import discord
 from discord.ext import commands
-from utils.discord_utils import delete_command_message
+from utils.config import config
+from utils.formatting import format_file_size
 
 class HelpCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    def format_help_menu(self, ctx, user_prefs: dict) -> str:
+        """Create a formatted help menu."""
+        # Header with current preferences
+        header = (
+            "📋 IMMICH DISCORD BOT HELP\n"
+            "═══════════════════════\n\n"
+            "⚙️ Current Settings\n"
+            f"  • Max File Size: {format_file_size(config.get_file_size_limit(str(ctx.author.id)))}\n"
+            f"  • Max Attempts: {user_prefs['max_attempts']}\n"
+            f"  • Update Interval: {user_prefs['progress_update_interval']}s\n"
+        )
+
+        # Commands section with tree structure
+        commands = (
+            "\n🎲 Random Assets\n"
+            "  └─ .random [options]\n"
+            "     ├─ min:size    Minimum file size (e.g., min:2mb)\n"
+            "     ├─ max:size    Maximum file size (e.g., max:5mb)\n"
+            "     ├─ image/video Filter by type\n"
+            "     ├─ count:n     Number of assets (max 10)\n"
+            "     └─ Example: .random min:2mb max:5mb image count:3\n"
+            "\n"
+            "⚙️ Preferences\n"
+            "  └─ .prefs [setting] [value]\n"
+            "     └─ Example: .prefs max_attempts 50\n"
+            "     💡 Use .prefs with no arguments to see all available settings\n"
+            "\n"
+            "🛑 Control\n"
+            "  └─ .cancel    Stop ongoing search\n"
+            "\n"
+            "💡 Tips\n"
+            "  • Use count:n to get multiple assets at once\n"
+            "  • Large files show download progress\n"
+            "  • Cancel search anytime with .cancel\n"
+            "  • Run .prefs to see and configure all available settings"
+        )
+
+        return f"```\n{header}{commands}```"
+
     @commands.command()
     async def help(self, ctx):
-        """Display help for all commands."""
-        help_message = f"""```
-    Asset Bot Help
-    ==============
-    
-    Core Commands:
-    -------------
-    {ctx.prefix}random [options]  : Fetch random assets
-        Options:
-        - min:size     : Minimum file size (e.g., min:2mb, min:500kb)
-        - max:size     : Maximum file size (e.g., max:5mb, max:900kb)
-        - image/video  : Asset type filter
-        - count:n      : Number of assets to fetch (max 10)
-        Example: {ctx.prefix}random min:2mb max:5mb image count:3
-    
-    {ctx.prefix}get <asset_id>   : Fetch a specific asset
-    {ctx.prefix}delete <asset_id|last> : Delete an asset
-    {ctx.prefix}favorite <asset_id|last> : Mark as favorite
-    {ctx.prefix}unfavorite <asset_id|last> : Remove from favorites
-    {ctx.prefix}stats : Show server statistics
-    {ctx.prefix}cancel : Cancel an ongoing random search
-    
-    Preference Commands:
-    ------------------
-    {ctx.prefix}prefs : Show current preferences
-    {ctx.prefix}prefs set <setting> <value> : Update a preference
-    {ctx.prefix}prefs reset : Reset preferences
-    {ctx.prefix}helppref : Show detailed preference help
-    
-    Tips:
-    -----
-    - Use 'last' with favorite/unfavorite/delete to act on the last fetched asset
-    - Use 'cancel' to stop a random search in progress
-    ```
-    """
-        await ctx.send(help_message, delete_after=60)
-        await delete_command_message(ctx)
+        """Show help information with current preferences."""
+        try:
+            user_prefs = config.get_user_preferences(str(ctx.author.id))
+            help_text = self.format_help_menu(ctx, user_prefs)
+            await ctx.send(help_text)
+        except Exception as e:
+            await ctx.send(f"❌ Error showing help: {str(e)}")
 
 async def setup(bot):
     await bot.add_cog(HelpCommands(bot))
