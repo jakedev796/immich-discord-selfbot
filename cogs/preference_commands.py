@@ -99,7 +99,7 @@ class PreferenceCommands(commands.Cog):
         if not setting:
             await send_error_message(
                 ctx,
-                "❌ Invalid setting. Use `.helppref` to see available settings and their aliases.",
+                "❌ Invalid setting. Use `.prefs` to see available settings and their aliases.",
                 delete_after=15
             )
             return
@@ -184,49 +184,6 @@ class PreferenceCommands(commands.Cog):
             await send_error_message(ctx, f"Error resetting preferences: {str(e)}")
         finally:
             await delete_command_message(ctx)
-
-    @commands.command()
-    async def helppref(self, ctx):
-        """Display detailed help for preference settings."""
-        help_message = (
-            "```\n"
-            "⚙️ PREFERENCE SETTINGS HELP\n"
-            "═══════════════════════\n\n"
-            "📝 Available Settings\n"
-            "  ├─ account_type (account)\n"
-            "  │  └─ Your Discord account type\n"
-            "  │     • basic: Regular Discord (25MB)\n"
-            "  │     • nitro_basic: Nitro Basic (50MB)\n"
-            "  │     • nitro: Full Nitro (500MB)\n"
-            "  │     Example: .prefs set account nitro\n"
-            "  │\n"
-            "  ├─ media_type (mt, type)\n"
-            "  │  └─ Default media type filter\n"
-            "  │     • Values: image, video, all\n"
-            "  │     Example: .prefs set mt image\n"
-            "  │\n"
-            "  ├─ min_size (min, mins)\n"
-            "  │  └─ Minimum file size filter\n"
-            "  │     • Format: number + mb/kb\n"
-            "  │     Example: .prefs set min 2mb\n"
-            "  │\n"
-            "  ├─ max_attempts (attempts)\n"
-            "  │  └─ Maximum search attempts\n"
-            "  │     • Format: positive number\n"
-            "  │     Example: .prefs set attempts 50\n"
-            "  │\n"
-            "  └─ update_interval (interval)\n"
-            "     └─ Progress update frequency\n"
-            "        • Format: seconds\n"
-            "        Example: .prefs set interval 5\n\n"
-            "💡 Usage\n"
-            "  • View all settings: .prefs\n"
-            "  • Change setting: .prefs set [setting] [value]\n"
-            "  • Reset all: .prefs reset\n"
-            "```"
-        )
-        await ctx.send(help_message, delete_after=60)
-        await delete_command_message(ctx)
 
 async def setup(bot):
     await bot.add_cog(PreferenceCommands(bot))
