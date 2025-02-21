@@ -125,7 +125,7 @@ File size limits are automatically enforced based on the user's account type.
 
 ### Help Commands
 - `.help`: Shows general help message
-- `.helppref`: Shows detailed preference settings help
+- `.prefs`: Shows detailed preference settings help
 
 ## Environment Variables
 
